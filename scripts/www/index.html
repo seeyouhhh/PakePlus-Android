@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#0F0A1E">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>AI 写剧本</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <!-- Toast -->
+  <div id="toast" class="toast"></div>
+
+  <div class="app-container">
+    <!-- Header -->
+    <header class="app-header">
+      <h1>🎬 AI 写剧本</h1>
+      <div class="header-actions">
+        <button class="icon-btn" onclick="startOver()" title="重新开始">↺</button>
+        <button class="icon-btn" onclick="toggleDebugPanel()" title="API 调用观察">📊</button>
+        <button class="icon-btn" onclick="showPage('settings')" title="设置">⚙</button>
+      </div>
+    </header>
+
+    <!-- Progress Bar -->
+    <div id="progress-container" class="progress-container">
+      <div class="progress-bar-bg">
+        <div id="progress-fill" class="progress-bar-fill"></div>
+      </div>
+      <div class="progress-steps">
+        <span id="pstep-0" class="progress-step">主题</span>
+        <span id="pstep-1" class="progress-step">切入</span>
+        <span id="pstep-2" class="progress-step">选题</span>
+        <span id="pstep-3" class="progress-step">导向</span>
+        <span id="pstep-4" class="progress-step">素材</span>
+        <span id="pstep-5" class="progress-step">筛选</span>
+        <span id="pstep-6" class="progress-step">结构</span>
+        <span id="pstep-7" class="progress-step">修改</span>
+        <span id="pstep-8" class="progress-step">创作</span>
+        <span id="pstep-9" class="progress-step">预览</span>
+      </div>
+    </div>
+
+    <!-- ====== MAIN PAGE ====== -->
+    <div id="page-main" class="step-view">
+
+      <!-- Step 0: 输入主题 -->
+      <div id="step-0" class="step-view">
+        <div class="card">
+          <div class="card-title">📝 输入剧本主题</div>
+          <div class="card-subtitle">描述你想创作什么样的剧本？可以是一个故事梗概、一段想法，或者只是一个关键词。</div>
+          <div class="form-group">
+            <label for="topic-input">主题 / 描述</label>
+            <textarea id="topic-input" rows="4" placeholder="例如：一个关于未来世界人工智能觉醒的故事，主角是一名普通程序员..." style="min-height:80px;"></textarea>
+          </div>
+          <button class="btn btn-primary btn-full" onclick="submitTopic()">开始创作 🚀</button>
+        </div>
+      </div>
+
+      <!-- Step 1: 生成切入点（加载中） -->
+      <div id="step-1" class="step-view">
+        <div class="card">
+          <div class="card-title">🎯 生成切入点</div>
+          <div id="step-1-loading" class="loading show">
+            <div class="spinner"></div>
+            <div class="loading-text">🤖 AI 正在构思切入点...</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 2: 选择切入点 -->
+      <div id="step-2" class="step-view">
+        <div class="card">
+          <div class="card-title">
+            <span class="step-badge">1</span>
+            选择或填写切入点
+          </div>
+          <div class="card-subtitle">AI 根据你的主题生成了以下 5 个创作切入点，选择一个最感兴趣的，或者自己填写一个。</div>
+          <div id="angles-list" class="options-list"></div>
+
+          <div class="custom-input-area">
+            <div class="form-group">
+              <label for="custom-angle">或者自定义切入点</label>
+              <input type="text" id="custom-angle" placeholder="输入你自己的切入点..." />
+            </div>
+          </div>
+
+          <div class="btn-group">
+            <button class="btn btn-secondary" onclick="goBack(2)" style="flex:1;">← 上一步</button>
+            <button class="btn btn-secondary" onclick="regenerateAngles()" style="flex:1;">🔄 重新生成</button>
+            <button class="btn btn-primary" onclick="confirmAngle()" style="flex:1;">下一步 →</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 3: 素材搜索导向选择 -->
+      <div id="step-3" class="step-view">
+        <div class="card">
+          <div class="card-title">
+            <span class="step-badge">2</span>
+            选择素材搜索导向
+          </div>
+          <div id="step-3-loading" class="loading show">
+            <div class="spinner"></div>
+            <div class="loading-text">🤖 AI 正在思考素材搜索导向...</div>
+          </div>
+          <div id="step-3-content" style="display:none;">
+          <div class="card-subtitle">AI 根据你的切入点和主题生成了以下素材搜索导向，选择你感兴趣的搜索方向（可多选），也可以自定义添加。</div>
+
+          <label style="margin-bottom:8px;">素材搜索导向（多选）</label>
+          <div id="orientations-list" class="options-list"></div>
+
+          <button class="btn btn-secondary btn-full" onclick="regenerateOrientations()" style="margin-bottom:12px;">🔄 重新生成</button>
+
+          <!-- Add custom orientation -->
+          <div class="custom-input-area">
+            <div class="form-group">
+              <label for="custom-orientation">自定义搜索导向</label>
+              <input type="text" id="custom-orientation" placeholder="输入你自己想要的搜索方向..." />
+            </div>
+            <button class="btn btn-secondary btn-sm" onclick="addCustomOrientation()">+ 添加导向</button>
+          </div>
+
+          <div style="margin-top:16px;">
+            <label style="margin-bottom:8px;">已选搜索导向</label>
+            <div id="selected-orientations-list" class="options-list"></div>
+          </div>
+
+          <div class="btn-group" style="margin-top:12px;">
+            <button class="btn btn-secondary" onclick="goBack(3)" style="flex:1;">← 上一步</button>
+            <button class="btn btn-primary" onclick="confirmOrientations()" style="flex:1;">搜索素材 →</button>
+          </div>
+          </div> <!-- /step-3-content -->
+        </div> <!-- /card -->
+      </div> <!-- /step-3 -->
+
+      <!-- Step 4: 生成素材（加载中） -->
+      <div id="step-4" class="step-view">
+        <div class="card">
+          <div class="card-title">📚 生成素材</div>
+          <div id="step-4-loading" class="loading show">
+            <div class="spinner"></div>
+            <div class="loading-text">🤖 AI 正在搜集素材...</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 5: 筛选素材 -->
+      <div id="step-5" class="step-view">
+        <div class="card">
+          <div class="card-title">
+            <span class="step-badge">3</span>
+            筛选素材
+          </div>
+          <div class="card-subtitle">勾选你需要的素材，也可以添加自定义素材。</div>
+
+          <label style="margin-bottom:8px;">AI 生成的素材（点击选择）</label>
+          <div id="materials-list" class="options-list"></div>
+
+          <button class="btn btn-secondary btn-full" onclick="regenerateMaterials()" style="margin-bottom:16px;">🔄 重新生成</button>
+
+          <!-- Add custom material -->
+          <div class="add-material-form">
+            <label>添加自定义素材</label>
+            <div class="form-group">
+              <input type="text" id="custom-material-title" placeholder="素材标题" />
+            </div>
+            <div class="form-group">
+              <input type="text" id="custom-material-desc" placeholder="素材描述（可选）" />
+            </div>
+            <button class="btn btn-secondary btn-sm" onclick="addCustomMaterial()">+ 添加素材</button>
+          </div>
+
+          <div style="margin-top:16px;">
+            <label style="margin-bottom:8px;">已选素材</label>
+            <div id="selected-materials-list" class="options-list"></div>
+          </div>
+
+          <div class="btn-group" style="margin-top:12px;">
+            <button class="btn btn-secondary" onclick="goBack(5)" style="flex:1;">← 上一步</button>
+            <button class="btn btn-primary" onclick="confirmMaterials()" style="flex:1;">生成结构 →</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 6: 生成结构（加载中） -->
+      <div id="step-6" class="step-view">
+        <div class="card">
+          <div class="card-title">🏗️ 构思剧本结构</div>
+          <div id="step-6-loading" class="loading show">
+            <div class="spinner"></div>
+            <div class="loading-text">🤖 AI 正在构思剧本结构...</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 7: 结构预览与修改 -->
+      <div id="step-7" class="step-view">
+        <div class="card">
+          <div class="card-title">
+            <span class="step-badge">4</span>
+            剧本结构预览
+          </div>
+          <div id="structure-content" class="script-preview"></div>
+
+          <div class="script-actions" style="margin-bottom:16px;">
+            <button class="btn btn-secondary" onclick="goBack(7)" style="flex:1;">← 上一步</button>
+            <button class="btn btn-primary" onclick="confirmStructure()" style="flex:2;">确认结构，生成剧本 →</button>
+            <button class="btn btn-secondary" onclick="regenerateStructure()">🔄</button>
+          </div>
+        </div>
+
+        <!-- Structure Revision Chat -->
+        <div class="card">
+          <div class="card-title">💬 修改结构</div>
+          <div class="card-subtitle">对剧本结构不满意？告诉 AI 你想怎么修改。</div>
+          <div class="chat-area">
+            <div id="structure-chat-messages" class="chat-messages"></div>
+            <div class="chat-input-row">
+              <input type="text" id="structure-revision-input" placeholder="输入结构修改要求..." onkeydown="handleStructureRevisionKeydown(event)" />
+              <button class="btn btn-primary btn-sm" onclick="submitStructureRevision()">发送</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 8: 生成剧本（加载中） -->
+      <div id="step-8" class="step-view">
+        <div class="card">
+          <div class="card-title">✍️ 创作剧本中</div>
+          <div id="step-8-loading" class="loading show">
+            <div class="spinner"></div>
+            <div class="loading-text">✍️ AI 正在创作剧本...</div>
+          </div>
+          <div id="script-content" class="script-preview" style="margin-top:12px;max-height:40vh;font-size:0.85rem;"></div>
+        </div>
+      </div>
+
+      <!-- Step 9: 预览与修改 -->
+      <div id="step-9" class="step-view">
+        <div class="card">
+          <div class="card-title">📄 剧本预览</div>
+          <div id="script-content-final" class="script-preview"></div>
+
+          <div class="script-actions" style="margin-bottom:16px;">
+            <button class="btn btn-secondary" onclick="goBack(9)" style="flex:1;">← 上一步</button>
+            <button class="btn btn-primary" onclick="downloadScript()" style="flex:1;">📥 下载</button>
+            <button class="btn btn-secondary" onclick="copyScript()" style="flex:1;">📋 复制</button>
+          </div>
+        </div>
+
+        <!-- Revision Chat -->
+        <div class="card">
+          <div class="card-title">💬 修改剧本</div>
+          <div class="card-subtitle">对剧本不满意？告诉 AI 你想怎么修改。</div>
+          <div class="chat-area">
+            <div id="chat-messages" class="chat-messages"></div>
+            <div class="chat-input-row">
+              <input type="text" id="revision-input" placeholder="输入修改要求..." onkeydown="handleRevisionKeydown(event)" />
+              <button class="btn btn-primary btn-sm" onclick="submitRevision()">发送</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ====== SETTINGS PAGE ====== -->
+    <div id="page-settings" class="step-view">
+      <div class="card">
+        <div class="card-title">⚙️ 设置</div>
+
+        <!-- API Provider Selection -->
+        <div class="settings-section">
+          <h3>🤖 AI 服务商</h3>
+          <div class="setting-item">
+            <label>选择模型服务商</label>
+            <div style="display:flex;gap:12px;margin-top:8px;">
+              <label style="display:flex;align-items:center;gap:6px;cursor:pointer;flex:1;padding:12px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);">
+                <input type="radio" name="provider" value="deepseek" checked />
+                <span class="provider-badge badge-deepseek">DeepSeek</span>
+              </label>
+              <label style="display:flex;align-items:center;gap:6px;cursor:pointer;flex:1;padding:12px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);">
+                <input type="radio" name="provider" value="silicon" />
+                <span class="provider-badge badge-silicon">硅基流动</span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- API Keys -->
+        <div class="settings-section">
+          <h3>🔑 API Key 配置</h3>
+          <div class="setting-item">
+            <div class="setting-label">
+              <span class="provider-badge badge-deepseek">DeepSeek</span>
+              <span>API Key</span>
+            </div>
+            <input type="password" id="deepseek-key" placeholder="sk-xxxxxxxxxxxxxxxx" />
+          </div>
+          <div class="setting-item">
+            <div class="setting-label">
+              <span class="provider-badge badge-silicon">硅基流动</span>
+              <span>API Key</span>
+            </div>
+            <input type="password" id="silicon-key" placeholder="sk-xxxxxxxxxxxxxxxx" />
+          </div>
+        </div>
+
+        <!-- Web Search -->
+        <div class="settings-section">
+          <h3>🌐 联网搜索</h3>
+          <div class="setting-item">
+            <div class="toggle-container">
+              <label class="toggle">
+                <input type="checkbox" id="search-toggle" />
+                <span class="slider"></span>
+              </label>
+              <span style="font-size:0.85rem;color:var(--text-secondary);">生成切入点和素材时联网搜索（智谱 BigModel Web Search）</span>
+            </div>
+          </div>
+          <div class="setting-item">
+            <div class="setting-label">
+              <span style="color:#4A90D9;">🔑</span>
+              <span>智谱 (BigModel) API Key</span>
+            </div>
+            <input type="password" id="search-api-key" placeholder="智谱 BigModel API Key" />
+          </div>
+          <div style="font-size:0.75rem;color:var(--text-muted);margin-top:4px;line-height:1.6;">
+            🔑 需要从 <a href="https://open.bigmodel.cn/" target="_blank" style="color:#4A90D9;">智谱开放平台 (BigModel)</a> 获取 <strong>API Key</strong>（需要开通 Web Search 服务权限）。<br>
+            💡 智谱 BigModel API 支持 CORS 跨域调用，无需本地代理服务器，直接从浏览器调用。<br>
+            ⚠️ 智谱 Web Search API 需要使用独立于 Chat API 的 API Key，请确保在<a href="https://open.bigmodel.cn/" target="_blank" style="color:#4A90D9;">智谱开放平台</a>确认有 Web Search 服务调用权限。
+          </div>
+        </div>
+
+        <!-- Script Type -->
+        <div class="settings-section">
+          <h3>🎭 剧本类型</h3>
+          <div class="setting-item">
+            <label for="script-type">剧本类型（可自由输入或选择建议）</label>
+            <input type="text" id="script-type" placeholder="例如：电视剧、电影、短剧..." list="script-type-suggestions" />
+            <datalist id="script-type-suggestions">
+              <option value="电视剧">
+              <option value="电影">
+              <option value="短剧">
+              <option value="话剧">
+              <option value="广播剧">
+              <option value="动漫">
+              <option value="游戏剧情">
+              <option value="相声小品">
+              <option value="短视频脚本">
+              <option value="广告脚本">
+              <option value="网剧">
+              <option value="纪录片">
+            </datalist>
+          </div>
+        </div>
+
+        <!-- Script Setting -->
+        <div class="settings-section">
+          <h3>🌍 剧本设定</h3>
+          <div class="setting-item">
+            <label for="script-setting">世界观 / 时代背景 / 核心设定（可选）</label>
+            <textarea id="script-setting" rows="3" placeholder="例如：
+- 世界观：赛博朋克未来都市，科技高度发达但贫富差距悬殊
+- 时代背景：2157年，人类已实现星际殖民
+- 核心设定：人工智能拥有公民身份，人类与 AI 共存但矛盾重重"></textarea>
+          </div>
+          <div style="font-size:0.75rem;color:var(--text-muted);margin-top:4px;line-height:1.6;">
+            剧本设定将作为创作背景信息发送给 AI，帮助 AI 在生成切入点和剧本时保持世界观一致。
+          </div>
+        </div>
+
+        <!-- Script Format -->
+        <div class="settings-section">
+          <h3>📐 自定义剧本格式</h3>
+          <div class="setting-item">
+            <label for="script-format">剧本格式要求（可选）</label>
+            <textarea id="script-format" rows="4" placeholder="例如：
+- 每集时长约45分钟
+- 采用三幕式结构
+- 开场要有悬念钩子
+- 每集结尾留下悬念"></textarea>
+          </div>
+          <div style="font-size:0.75rem;color:var(--text-muted);margin-top:4px;line-height:1.6;">
+            自定义剧本格式要求将作为提示词的一部分发送给 AI，指导 AI 按照你期望的格式创作剧本。
+          </div>
+        </div>
+
+        <button class="btn btn-primary btn-full" onclick="saveSettings()">💾 保存设置</button>
+
+        <div id="model-info" class="model-info" style="margin-top:12px;"></div>
+
+        <button class="btn btn-secondary btn-full" onclick="showPage('main')" style="margin-top:12px;">
+          ← 返回创作
+        </button>
+      </div>
+    </div>
+
+    <!-- ====== DEBUG PANEL ====== -->
+    <div id="debug-panel" class="debug-panel">
+      <div class="debug-header" onclick="toggleDebugExpand()">
+        <span class="debug-title">📊 API 调用观察</span>
+        <div class="debug-actions">
+          <span id="debug-count" class="debug-count">0</span>
+          <button class="debug-btn" onclick="event.stopPropagation(); clearDebugLogs()" title="清空">🗑</button>
+          <span id="debug-arrow" class="debug-arrow">▾</span>
+        </div>
+      </div>
+      <div id="debug-body" class="debug-body">
+        <div id="debug-list" class="debug-list">
+          <div class="debug-empty">暂无 API 调用记录</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Scripts -->
+  <script src="js/storage.js"></script>
+  <script src="js/logger.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/app.js"></script>
+
+  <!-- Service Worker 注册 -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', function() {
+        navigator.serviceWorker.register('sw.js').then(function(registration) {
+          console.log('✅ ServiceWorker 注册成功，作用域:', registration.scope);
+        }, function(err) {
+          console.log('❌ ServiceWorker 注册失败:', err);
+        });
+      });
+    }
+  </script>
+
+</body>
+</html>
