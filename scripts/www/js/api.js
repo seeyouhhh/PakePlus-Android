@@ -704,12 +704,9 @@ ${excluded}
     const materialsText = materials.length > 0
       ? `\n素材信息：\n${materials.map((m, i) => `${i + 1}. ${m.title}：${m.desc}`).join('\n')}`
       : '';
-    const settingContext = scriptSetting ? `\n\n剧本设定：\n${scriptSetting}` : '';
+    const settingContext = scriptSetting ? `\n\n剧本设定（必须严格遵循此设定）：\n${scriptSetting}` : '';
 
-    const messages = [
-      {
-        role: 'system',
-        content: `你是一位剧本结构规划师。请根据用户提供的主题、切入点、素材和设定，构思一个简洁清晰的剧本结构大纲。
+    let systemContent = `你是一位剧本结构规划师。请根据用户提供的主题、切入点、素材和设定，构思一个简洁清晰的剧本结构大纲。
 
 要求：
 1. 保持简洁，不要过于复杂或详细
@@ -718,7 +715,20 @@ ${excluded}
 4. 不要在人物弧光、分幕细节上过度展开
 5. 保持与剧本类型、设定的世界观一致
 
-当前剧本类型：${scriptType}${scriptFormat ? `\n\n剧本格式要求：\n${scriptFormat}` : ''}`,
+当前剧本类型：${scriptType}`;
+
+    if (scriptSetting) {
+      systemContent += `\n\n【重要】必须严格遵循以下剧本设定来规划结构，不得与设定冲突：\n${scriptSetting}`;
+    }
+
+    if (scriptFormat) {
+      systemContent += `\n\n剧本格式要求：\n${scriptFormat}`;
+    }
+
+    const messages = [
+      {
+        role: 'system',
+        content: systemContent,
       },
       {
         role: 'user',
@@ -733,6 +743,7 @@ ${excluded}
 
     return await this._chat(messages, { temperature: 0.6, maxTokens: 4096, onStream });
   },
+
 
   // ===== 3.5 修改剧本结构 =====
   async reviseStructure(currentStructure, revisionRequest, onStream) {
