@@ -8,8 +8,10 @@ const state = {
   currentStep: 0, // 0=主题, 1=切入点, 2=选切入点, 3=素材导向, 4=素材加载, 5=筛选素材, 6=结构生成, 7=结构预览修改, 8=生成剧本, 9=预览修改
   topic: '',
   angle: '',
+  // ===== 切入点（多选支持） =====
   angles: [],
-  selectedAngleIndex: -1,
+  selectedAngleIndices: [], // 多选：已选切入点索引列表
+  customAngles: [],         // 用户自定义切入点（字符串数组）
   allGeneratedAngles: [], // 所有已生成的切入点（去重用）
   // 素材搜索导向
   orientations: [],
@@ -211,8 +213,9 @@ function submitTopic() {
   }
   state.topic = topic;
   state.angles = [];
+  state.selectedAngleIndices = [];
+  state.customAngles = [];
   state.allGeneratedAngles = [];
-  state.selectedAngleIndex = -1;
   state.materials = [];
   state.keptMaterials = [];
   state.allGeneratedMaterials = [];
@@ -258,16 +261,20 @@ async function generateAngles() {
   }
 }
 
+// ===== 切入点渲染（多选，参考导向页面风格） =====
 function renderAngles() {
   const container = $('angles-list');
+  const selectedContainer = $('selected-angles-list');
   container.innerHTML = '';
+  selectedContainer.innerHTML = '';
 
+  // 1. AI 生成的切入点列表（仅显示未被选中的）
   state.angles.forEach((angle, i) => {
+    if (state.selectedAngleIndices.includes(i)) return;
     const div = document.createElement('div');
-    div.className = `option-item${state.selectedAngleIndex === i ? ' selected' : ''}`;
+    div.className = 'option-item';
     div.innerHTML = `
       <div class="option-row">
-        <div class="radio-circle"></div>
         <span class="option-text">${escapeHtml(angle)}</span>
       </div>
     `;
@@ -275,26 +282,93 @@ function renderAngles() {
     container.appendChild(div);
   });
 
+  if (container.children.length === 0) {
+    container.innerHTML = '<div style="font-size:0.85rem;color:var(--text-muted);padding:12px;text-align:center;">暂无可用切入点，可点击重新生成或自定义添加</div>';
+  }
+
+  // 2. 已选区域
+  // 已选 AI 切入点
+  state.selectedAngleIndices.forEach(idx => {
+    const angle = state.angles[idx];
+    if (!angle) return;
+    const div = document.createElement('div');
+    div.className = 'option-item selected orientation-selected';
+    div.innerHTML = `
+      <div class="option-row">
+        <span class="option-text">${escapeHtml(angle)}</span>
+      </div>
+      <button class="material-delete-btn orientation-delete-btn" title="删除">×</button>
+    `;
+    div.querySelector('.material-delete-btn').onclick = (e) => {
+      e.stopPropagation();
+      state.selectedAngleIndices = state.selectedAngleIndices.filter(v => v !== idx);
+      renderAngles();
+    };
+    selectedContainer.appendChild(div);
+  });
+
+  // 自定义切入点
+  state.customAngles.forEach((angle, i) => {
+    const div = document.createElement('div');
+    div.className = 'option-item selected orientation-selected';
+    div.innerHTML = `
+      <div class="option-row">
+        <span class="option-text">${escapeHtml(angle)}（自定义）</span>
+      </div>
+      <button class="material-delete-btn orientation-delete-btn" title="删除">×</button>
+    `;
+    div.querySelector('.material-delete-btn').onclick = (e) => {
+      e.stopPropagation();
+      state.customAngles.splice(i, 1);
+      renderAngles();
+    };
+    selectedContainer.appendChild(div);
+  });
+
+  if (selectedContainer.children.length === 0) {
+    selectedContainer.innerHTML = '<div style="font-size:0.85rem;color:var(--text-muted);padding:12px;text-align:center;">尚未选择任何切入点</div>';
+  }
+
   showStep(2);
 }
 
 function selectAngle(index) {
-  state.selectedAngleIndex = index;
-  state.angle = state.angles[index];
-  renderAngles(); // Re-render to show selection
+  // 多选：切换选中状态
+  if (state.selectedAngleIndices.includes(index)) {
+    state.selectedAngleIndices = state.selectedAngleIndices.filter(v => v !== index);
+  } else {
+    state.selectedAngleIndices.push(index);
+  }
+  renderAngles();
+}
+
+function addCustomAngle() {
+  const input = $('custom-angle');
+  const text = input.value.trim();
+  if (!text) {
+    showToast('请输入自定义切入点', 'error');
+    return;
+  }
+  state.customAngles.push(text);
+  input.value = '';
+  renderAngles();
+  showToast('已添加自定义切入点', 'success');
 }
 
 function confirmAngle() {
-  if (state.selectedAngleIndex < 0) {
-    const custom = $('custom-angle').value.trim();
-    if (!custom) {
-      showToast('请选择一个切入点或填写自定义切入点', 'error');
-      return;
-    }
-    state.angle = custom;
-  } else {
-    state.angle = state.angles[state.selectedAngleIndex];
+  // 收集所有已选的切入点文本
+  const selectedTexts = [
+    ...state.selectedAngleIndices.map(i => state.angles[i]),
+    ...state.customAngles,
+  ].filter(Boolean);
+
+  if (selectedTexts.length === 0) {
+    showToast('请至少选择一个切入点或添加自定义切入点', 'error');
+    return;
   }
+
+  // 将多个切入点用分号连接
+  state.angle = selectedTexts.join('；');
 
   // Reset orientations for new angle
   state.orientations = [];
@@ -309,8 +383,11 @@ function confirmAngle() {
 
 function regenerateAngles() {
   if (state.isGenerating) return;
+  // 保留已选的切入点和自定义切入点
+  const newlySelected = state.selectedAngleIndices.map(i => state.angles[i]).filter(Boolean);
+  state.customAngles.push(...newlySelected);
   state.angles = [];
-  state.selectedAngleIndex = -1;
+  state.selectedAngleIndices = [];
   generateAngles();
 }
 
@@ -468,12 +545,13 @@ function regenerateOrientations() {
   state.keptOrientations.push(...newlySelected);
   state.keptOrientations.push(...state.customOrientations);
   // 重置 AI 导向列表，保留已保留的导向
+  // 注意：不清空 allGeneratedOrientations，确保 AI 不会生成与之前重复的内容
   state.orientations = [];
   state.selectedOrientations = [];
   state.customOrientations = [];
-  state.allGeneratedOrientations = [];
   generateOrientations();
 }
+
 
 function confirmOrientations() {
   const totalSelected = state.selectedOrientations.length + state.customOrientations.length + state.keptOrientations.length;
@@ -969,7 +1047,8 @@ function startOver() {
   state.topic = '';
   state.angle = '';
   state.angles = [];
-  state.selectedAngleIndex = -1;
+  state.selectedAngleIndices = [];
+  state.customAngles = [];
   state.allGeneratedAngles = [];
   state.materials = [];
   state.selectedMaterialIndices = [];
@@ -981,6 +1060,11 @@ function startOver() {
   state.script = '';
   state.scriptHistory = [];
   state.isGenerating = false;
+  state.orientations = [];
+  state.selectedOrientations = [];
+  state.customOrientations = [];
+  state.keptOrientations = [];
+  state.allGeneratedOrientations = [];
 
   $('topic-input').value = '';
   $('custom-angle').value = '';
@@ -1014,7 +1098,8 @@ function showLoading(id, show, text = '') {
 function goBack(currentStep) {
   switch (currentStep) {
     case 2: // 选择切入点 → 输入主题
-      state.selectedAngleIndex = -1;
+      state.selectedAngleIndices = [];
+      state.customAngles = [];
       state.angle = '';
       showStep(0);
       break;
